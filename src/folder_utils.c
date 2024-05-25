@@ -1,5 +1,6 @@
 #include "folder_utils.h"
 #include "error_handling.h"
+#include "db_utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +10,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <pthread.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -16,6 +18,9 @@
 #else
 #include <pwd.h>
 #endif
+#include <dirent.h>
+
+pthread_mutex_t db_mutex;
 
 int is_directory(const char *path)
 {
@@ -53,6 +58,75 @@ void create_synclist(const char *desktop_file_path)
     }
     close(fd);
     printf("Synclist track file created at: %s\n", syncListPath);
+}
+
+void *store_folders_recursively(void *arg)
+{
+    const char *folder_path = (const char *)arg;
+    DIR *dir = opendir(folder_path);
+    if (!dir)
+    {
+        perror("Failed to open directory");
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir) != NULL))
+    {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+        {
+            continue; // this means skip the current directory and the parent directory!!!
+        }
+
+        char path[4096];
+        snprintf(path, sizeof(path), "%s\%s", folder_path, entry->d_name); // we are constructing the full path for the folder here
+
+        struct stat st; // unfortunately checking only if it is valid directory is not enough alone extra stat needs to be created
+        if (stat(path, &st) == -1)
+        {
+            perror("Failed to stat");
+            continue;
+        }
+
+        if (S_ISDIR(st.st_mode))
+        {
+            //!!!FIRST IF BLOCK WILL BE EXECUTED FOR THE FOLDERS!!!
+
+            // must lock the thread before accessing to the db! don't change this!
+            pthread_mutex_lock(&db_mutex);
+            store_folder_info(entry->d_name, path, st.st_size, st.st_mtime);
+            pthread_mutex_unlock(&db_mutex);
+
+            pthread_t thread;
+            char *new_path = strdup(path); //!!!EACH THREAD NEEDS IT'S OWN PATH!!!!
+            printf("Pointer value of the new path: %p\n", (void *)new_path);
+
+            // HERE WE GO!! LET'S CREATE THE THREADS AND HAVE SOME FUN!!!
+            if (pthread_create(&thread, NULL, store_folders_recursively, new_path) != 0)
+            {
+                perror("COuldn't create thread");
+                free(new_path);
+            }
+            else
+            {
+                /*
+                IF THREAD CREATION IS SUCCESSFUL DETACH IT AND RUN IT INDEPENDENTLY
+                SO THAT THERE IS NO NEED TO FREE IT LATER
+                */
+                pthread_detach(thread);
+            }
+        }
+        else
+        {
+            //!!!THIS BLOCK WILL BE EXECUTED FOR THE FILES!!!
+            pthread_mutex_lock(&db_mutex);
+            store_folder_info(entry->d_name, path, st.st_size, st.st_mtime);
+            pthread_mutex_unlock(&db_mutex);
+        }
+    }
+
+    closedir(dir); // the function performed it's duty now let's close the directory.
+    return NULL;
 }
 
 void create_sync_folder()
@@ -107,5 +181,6 @@ void create_sync_folder()
 int main()
 {
     create_sync_folder();
+    store_folder_info("test", "test2", 123123, 123123);
     return 0;
 }

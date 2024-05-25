@@ -5,9 +5,10 @@ project(file-synchronizer)
 set(CMAKE_C_STANDARD 23)
 
 include_directories(include)
+include_directories(/usr/include/postgresql/)
 
 file(GLOB SRC_FILES "src/*.c")
 
 add_executable(file-synchronizer ${SRC_FILES})
 
-target_link_libraries(file-synchronizer pthread)
+target_link_libraries(file-synchronizer pq pthread)
