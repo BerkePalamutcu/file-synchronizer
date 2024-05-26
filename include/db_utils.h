@@ -5,5 +5,6 @@
 #include <time.h>
 
 void store_folder_info(const char *name, const char *path, off_t size, time_t last_modified);
+int is_file_modified(const char *path, off_t size, time_t last_modified);
 
 #endif

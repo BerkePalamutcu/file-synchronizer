@@ -3,8 +3,9 @@
 
 #include <stdio.h>
 
-void handle_error(const char *error_message){
+void handle_error(const char *error_message)
+{
     fprintf(stderr, "Error: %s\n", error_message);
 }
 
-#endif //FILE_SYNCHRONIZER_ERROR_HANDLING_H
+#endif // FILE_SYNCHRONIZER_ERROR_HANDLING_H
