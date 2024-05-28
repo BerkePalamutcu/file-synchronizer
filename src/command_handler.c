@@ -2,7 +2,7 @@
 #include "path_utils.h"
 #include "folder_utils.h"
 #include "arg_parser.h"
-// #include "file_transfer.h"
+#include "file_transfer.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -37,8 +37,8 @@ void handle_command(int argc, char **argv)
     }
     else if (strcmp(arguments.command, "send") == 0)
     {
-        const char *sync_folder_path = "/path/to/sync/folder"; // Update this path as nee:wa
-        const char *server_ip = "127.0.0.1";                   // Update this IP as needed
+        const char *sync_folder_path = "/home/alex/Desktop/sync"; // Update this path as nee:wa
+        const char *server_ip = "192.168.1.5";                   // Update this IP as needed
         int server_port = 12345;                               // Update this port as needed
 
         // send_files(sync_folder_path, server_ip, server_port);
@@ -47,8 +47,9 @@ void handle_command(int argc, char **argv)
     else if (strcmp(arguments.command, "listen") == 0)
     {
         int port = 12345;
-        // listen_for_files(port);
         printf("Listening on port %d\n", port);
+        listen_for_files(port);
+
     }
     else
     {

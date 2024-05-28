@@ -4,10 +4,23 @@
 #include <libpq-fe.h>
 #include <time.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+
+PGconn *connect_db()
+{
+    PGconn *conn = PQconnectdb("user=yourusername dbname=yourdbname password=nabumutana76");
+    if (PQstatus(conn) != CONNECTION_OK)
+    {
+        fprintf(stderr, "Connection to database failed: %s", PQerrorMessage(conn));
+        PQfinish(conn);
+        exit(1);
+    }
+    return conn;
+}
 
 void store_folder_info(const char *name, const char *path, off_t size, time_t last_modified)
 {
-    const char *conninfo = "dbname=folder_sync_db user=folder_sync_admin password=souer19ok";
+    const char *conninfo = "dbname=folder_sync_db user=folder_sync_admin password=nabumutana76";
     PGconn *conn = PQconnectdb(conninfo);
 
     printf("Testing db connection\n");
@@ -84,4 +97,41 @@ void store_folder_info(const char *name, const char *path, off_t size, time_t la
 
     PQclear(check_res);
     PQfinish(conn);
+}
+
+int is_file_modified(const char *filename)
+{
+    struct stat attr;
+    if (stat(filename, &attr) != 0)
+    {
+        perror("Failed to get file attributes");
+        return 1; // Assume modified if unable to get stats
+    }
+
+    time_t current_mod_time = attr.st_mtime;
+    PGconn *conn = connect_db();
+    PGresult *res;
+    int is_modified = 1; // Default to modified
+
+    char query[1024];
+    snprintf(query, sizeof(query), "SELECT last_modified FROM file_metadata WHERE filename = '%s'", filename);
+    res = PQexec(conn, query);
+
+    if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0)
+    {
+        time_t last_mod_time = (time_t)atoi(PQgetvalue(res, 0, 0));
+        if (last_mod_time == current_mod_time)
+        {
+            is_modified = 0; // Not modified
+        }
+    }
+
+    // Update or insert the new modification time
+    snprintf(query, sizeof(query), "INSERT INTO file_metadata (filename, last_modified) VALUES ('%s', %ld) ON CONFLICT (filename) DO UPDATE SET last_modified = EXCLUDED.last_modified", filename, (long)current_mod_time);
+    PQclear(res);
+    res = PQexec(conn, query);
+    PQclear(res);
+
+    PQfinish(conn);
+    return is_modified;
 }
